@@ -1,4 +1,4 @@
-DB_URL=postgresql://root:secret@localhost:5432/pixel_thc_dev?sslmode=disable
+DB_URL=postgresql://root:secret@localhost:5432/lpotl_go_dev?sslmode=disable
 
 .PHONY: network
 network:
@@ -6,7 +6,7 @@ network:
 
 .PHONY: postgres
 postgres:
-	docker run --name postgres-lpotl --network lpotl-network -p 5432:5432 -e POSTGRES_USER=root -e POSTGRES_PASSWORD=secret -d postgres:14-alpine
+	docker run --name postgres-lpotl --network lpotl-network -p 5432:5432 -e POSTGRES_USER=root -e POSTGRES_PASSWORD=secret -d postgres:15-alpine
 
 .PHONY: createdb
 createdb:
@@ -14,27 +14,19 @@ createdb:
 
 .PHONY: dropdb
 dropdb:
-	docker exec -it postgres dropdb lpotl_go_dev
+	docker exec -it postgres-lpotl dropdb lpotl_go_dev
 
 .PHONY: migrateup
 migrateup:
 	migrate -path postgres/migration -database "$(DB_URL)" -verbose up
 
-.PHONY: migrateup1
-migrateup1:
-	migrate -path postgres/migration -database "$(DB_URL)" -verbose up 1
-
 .PHONY: migratedown
 migratedown:
 	migrate -path postgres/migration -database "$(DB_URL)" -verbose down
 
-.PHONY: migratedown1
-migratedown1:
-	migrate -path postgres/migration -database "$(DB_URL)" -verbose down 1
-
 .PHONY: db_schema
 db_schema:
-	dbml2sql --postgres -o postgres/doc/schema.sql postgres/doc/db.dbml
+	dbml2sql --postgres -o postgres/schema.sql postgres/db.dbml
 
 .PHONY: sqlc
 sqlc:

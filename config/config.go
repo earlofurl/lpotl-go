@@ -6,6 +6,8 @@ import (
 	"github.com/spf13/viper"
 )
 
+// TODO: Remove unused fields
+
 // Config stores all configuration of the application.
 // The values are read by viper from a config file or environment variable.
 type Config struct {
@@ -29,6 +31,8 @@ type Config struct {
 	TokenSymmetricKey    string        `mapstructure:"TOKEN_SYMMETRIC_KEY"`
 	AccessTokenDuration  time.Duration `mapstructure:"ACCESS_TOKEN_DURATION"`
 	RefreshTokenDuration time.Duration `mapstructure:"REFRESH_TOKEN_DURATION"`
+
+	ScrapeCacheDir string `mapstructure:"SCRAPE_CACHE_DIR"`
 }
 
 // LoadConfig reads configuration from file or environment variables.

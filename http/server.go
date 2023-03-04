@@ -2,13 +2,10 @@ package http
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
-	chiMiddleware "github.com/go-chi/chi/middleware"
-	"github.com/go-chi/chi/v5"
-	"github.com/jwalton/gchalk"
-	"github.com/rogpeppe/go-internal/modfile"
-	"github.com/rs/zerolog/log"
-	"lpotl-go/config"
+	"github.com/earlofurl/lpotl-go"
+	"github.com/earlofurl/lpotl-go/postgres"
 	"math"
 	"net"
 	"net/http"
@@ -21,6 +18,17 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	chiMiddleware "github.com/go-chi/chi/middleware"
+	"github.com/go-chi/chi/v5"
+	"github.com/jwalton/gchalk"
+	"github.com/rogpeppe/go-internal/modfile"
+	"github.com/rs/zerolog/log"
+
+	"github.com/earlofurl/lpotl-go/config"
+	"github.com/earlofurl/lpotl-go/sqlc"
+
+	_ "github.com/lib/pq"
 )
 
 // Server represents an HTTP server. It is meant to wrap all HTTP functionality
@@ -32,17 +40,15 @@ type Server struct {
 	httpServer *http.Server
 	router     *chi.Mux
 	wg         sync.WaitGroup
+	db         *sql.DB
+	store      sqlc.Store
 
 	ln net.Listener
 
-	// Bind address & domain for the server's listener.
-	// If domain is specified, server is run on TLS using acme/autocert.
-	Addr   string
-	Domain string
-
-	// Keys used for secure cookie encryption.
-	HashKey  string
-	BlockKey string
+	// Services used by the various HTTP routes.
+	episodeService lpotl.EpisodeService
+	podcastService lpotl.PodcastService
+	seriesService  lpotl.SeriesService
 }
 
 type Options func(opts *Server) error
@@ -74,17 +80,59 @@ func defaultServer() *Server {
 func (s *Server) Init(version string) {
 	s.Version = version
 	//s.runDBMigration(s.cfg.MigrationURL, s.cfg.DBSource)
-	//s.newStore()
-	//s.newTokenMaker()
-	//s.newValidator()
+	s.newStore()
 	s.newRouter()
-	//s.newServices()
+	s.newServices()
 	s.setGlobalMiddleware()
-	//s.InitRoutes()
+	s.InitRoutes()
+	s.PrintAllRegisteredRoutes()
 }
 
 func (s *Server) newRouter() {
 	s.router = chi.NewRouter()
+}
+
+func (s *Server) newStore() {
+	conn, err := openDbConn(s.cfg)
+	if err != nil {
+		log.Fatal().Err(err).Msg("cannot connect to db")
+	}
+	s.store = sqlc.NewStore(conn)
+}
+
+func openDbConn(cfg *config.Config) (*sql.DB, error) {
+	db, err := sql.Open(cfg.DBDriver, cfg.DBSource)
+	if err != nil {
+		return nil, err
+	}
+
+	db.SetMaxOpenConns(cfg.DBMaxOpenConnections)
+	db.SetMaxIdleConns(cfg.DBMaxIdleConnections)
+
+	duration, err := time.ParseDuration(cfg.DBMaxIdleTime)
+	if err != nil {
+		return nil, err
+	}
+
+	db.SetConnMaxIdleTime(duration)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err = db.PingContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Info().Msg("database connection pool and sqlc.Store established")
+
+	return db, nil
+}
+
+func (s *Server) newServices() {
+	s.episodeService = postgres.NewEpisodeService(&s.store)
+	s.podcastService = postgres.NewPodcastService(&s.store)
+	s.seriesService = postgres.NewSeriesService(&s.store)
 }
 
 // setGlobalMiddleware sets the global middleware for the chi router to apply to all routes.
@@ -126,7 +174,7 @@ func start(s *Server) {
 	log.Printf("Serving at %s:%s\n", s.cfg.HTTPServerAddress, s.cfg.HTTPServerPort)
 	err := s.httpServer.ListenAndServe()
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to start server")
+		log.Fatal().Err(err).Msg("failed to start server, or server shut down unexpectedly")
 	}
 }
 

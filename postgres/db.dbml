@@ -1,0 +1,28 @@
+Table podcasts as P {
+  id serial [pk]
+  name varchar(255) [not null, default: '']
+  last_updated timestamptz [not null, default: `now()`]
+  Indexes {
+      name [unique]
+    }
+}
+
+Table episodes as E {
+  id serial [pk]
+  number_series int [not null, default: 0]
+  number_overall int [not null, default: 0]
+  name varchar(255) [not null, default: '']
+  release_date timestamptz [not null, default: `now()`]
+  description varchar(255) [not null, default: '']
+  url varchar(255) [not null, default: '']
+  transcript text [not null, default: '']
+  podcast_id int [ref: > P.id, not null]
+  series_id int [ref: > S.id, not null]
+  fts_doc_en tsvector
+}
+
+Table series as S {
+  id serial [pk]
+  name varchar(255) [not null, default: '']
+  podcast_id int [ref: > P.id, not null]
+}
