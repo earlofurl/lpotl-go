@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/earlofurl/lpotl-go"
 	"github.com/earlofurl/lpotl-go/postgres"
+	"github.com/earlofurl/lpotl-go/scraper"
 	"math"
 	"net"
 	"net/http"
@@ -42,6 +43,7 @@ type Server struct {
 	wg         sync.WaitGroup
 	db         *sql.DB
 	store      sqlc.Store
+	scrapers   []scraper.Scraper
 
 	ln net.Listener
 
@@ -86,6 +88,8 @@ func (s *Server) Init(version string) {
 	s.setGlobalMiddleware()
 	s.InitRoutes()
 	s.PrintAllRegisteredRoutes()
+	s.RegisterScrapers()
+	s.RunScrapers()
 }
 
 func (s *Server) newRouter() {
@@ -133,6 +137,29 @@ func (s *Server) newServices() {
 	s.episodeService = postgres.NewEpisodeService(&s.store)
 	s.podcastService = postgres.NewPodcastService(&s.store)
 	s.seriesService = postgres.NewSeriesService(&s.store)
+}
+
+func (s *Server) RegisterScrapers() {
+	scraper.RegisterScraper("lpotl", "lpotl-scraper", scraper.Scrape)
+	s.scrapers = scraper.GetScrapers()
+}
+
+func (s *Server) RunScrapers() {
+	for _, sc := range s.scrapers {
+		sc := sc
+		c := make(chan *scraper.ScrapedEpisode)
+		go func() {
+			s.wg.Add(1)
+			err := sc.Scrape(&s.wg, c)
+			log.Debug().Msgf("scraped %v episodes", len(c))
+			for e := range c {
+				log.Debug().Msgf("scraped episode: %v", e.Name)
+			}
+			if err != nil {
+				log.Error().Err(err).Msg("error in RunScrapers")
+			}
+		}()
+	}
 }
 
 // setGlobalMiddleware sets the global middleware for the chi router to apply to all routes.

@@ -9,17 +9,19 @@ import (
 	"time"
 )
 
-func ScrapeLpotl(wg *sync.WaitGroup, updateSite bool, knownEpisodes []string, out chan<- ScrapedEpisode) error {
+func Scrape(wg *sync.WaitGroup, out chan<- *ScrapedEpisode) error {
 	defer wg.Done()
 	scraperName := "lpotl"
 	podcastName := "Last Podcast On The Left"
 	logScrapeStart(scraperName, podcastName)
 
-	episodeCollector := createCollector("lastpodcastontheleft.com, www.lastpodcastontheleft.com")
-	siteCollector := createCollector("lastpodcastontheleft.com, www.lastpodcastontheleft.com")
+	//episodeCollector := createCollector("lastpodcastontheleft.com, www.lastpodcastontheleft.com")
+	//siteCollector := createCollector("lastpodcastontheleft.com, www.lastpodcastontheleft.com")
+	episodeCollector := createCollector()
+	siteCollector := createCollector()
 
 	episodeCollector.OnHTML(`html`, func(e *colly.HTMLElement) {
-		ep := ScrapedEpisode{}
+		ep := &ScrapedEpisode{}
 		ep.TranscriptUrl = e.Request.URL.String()
 		// TODO: Episode Number
 		// TODO: Subseries Name
@@ -93,5 +95,5 @@ func ScrapeLpotl(wg *sync.WaitGroup, updateSite bool, knownEpisodes []string, ou
 }
 
 func init() {
-	registerScraper("lpotl", "Last Podcast On The Left", ScrapeLpotl)
+	registerScraper("lpotl", "Last Podcast On The Left", Scrape)
 }

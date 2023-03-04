@@ -23,7 +23,7 @@ type Episode = sqlc.Episode
 
 var scrapers []Scraper
 
-type ScraperFunc func(*sync.WaitGroup, bool, []string, chan<- ScrapedEpisode) error
+type ScraperFunc func(*sync.WaitGroup, chan<- *ScrapedEpisode) error
 
 type Scraper struct {
 	ID     string
